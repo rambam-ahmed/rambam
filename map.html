@@ -602,7 +602,7 @@
             if (selectedOperator === 'orange') {
                 if (processedData.length >= 4) {
                     // حذف أول 4 صفوف (من الصف 1 إلى 4)
-                    processedData.splice(0, 4);
+                    processedData.splice(0, 2);
                     // حذف العمود الأول
                     processedData = processedData.map(row => row.slice(1));
                 }
@@ -790,4 +790,5 @@
         updateUIState();
     </script>
 </body>
+
 </html>
