@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>خريطة التكرارات من ملف Excel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""
+    />
+    <script
+        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""
+    ></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        :root {
+            --card-bg: #ffffff;
+            --card-bd: #e5e7eb;
+        }
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+            background: #fafafa;
+            direction: rtl;
+        }
+        .intro-page {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            background: #fafafa;
+        }
+        .intro-container {
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+        .intro-container h1 {
+            font-size: 24px;
+            margin-top: 0;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .intro-container .form-group {
+            margin-bottom: 15px;
+        }
+        .intro-container input[type="file"],
+        .intro-container select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 16px;
+        }
+        .intro-container label {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: block;
+        }
+        .intro-container button {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: none;
+            background: #007bff;
+            color: #fff;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        .intro-container .operator-buttons {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        .intro-container .operator-button {
+            flex: 1;
+            min-width: 100px;
+            padding: 10px;
+            border-radius: 8px;
+            border: 2px solid;
+            background: #fff;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            opacity: 0.6;
+            transition: opacity 0.3s;
+        }
+        .intro-container .operator-button.active {
+            opacity: 1;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+        }
+        #orange-btn { border-color: #ff7900; color: #ff7900; }
+        #we-btn { border-color: #64317f; color: #64317f; }
+        #vodafone-btn { border-color: #e60000; color: #e60000; }
+        #etisalat-btn { border-color: #60c511; color: #60c511; }
+        #none-btn { border-color: #aaa; color: #555; }
+        
+        .intro-container .operator-button:hover:not(.active) {
+            opacity: 0.8;
+        }
+        .intro-container .tip {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.6;
+            margin-top: 20px;
+            text-align: center;
+        }
+        #map-page {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+        .legend {
+            background: var(--card-bg);
+            border: 1px solid var(--card-bd);
+            padding: 8px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        .chip {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-left: 6px;
+            border: 1px solid #00000022;
+        }
+        .map-controls {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .map-controls button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 10px 15px;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            font-size: 14px;
+        }
+        .count-label {
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            font-weight: bold;
+            font-size: 12px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        /* تحسينات للهواتف */
+        @media (max-width: 768px) {
+            .intro-container {
+                padding: 20px;
+            }
+            .intro-container h1 {
+                font-size: 20px;
+            }
+            .intro-container .operator-buttons {
+                flex-direction: column;
+            }
+            .intro-container .operator-button {
+                min-width: auto;
+                width: 100%;
+            }
+            .map-controls {
+                top: 10px;
+                right: 10px;
+            }
+            .map-controls button {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+        }
+        
+        .stats-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 1000;
+            font-size: 14px;
+            max-width: 250px;
+        }
+    </style>
+</head>
+<body>
+    <div class="intro-page" id="intro-page">
+        <div class="intro-container">
+            <h1>استيراد إحداثيات من ملف Excel</h1>
+            <div class="form-group">
+                <label for="excel-file-input">اختر ملف Excel (.xlsx)</label>
+                <input type="file" id="excel-file-input" accept=".xlsx" />
+            </div>
+            <div class="form-group">
+                <label for="sheet-select">اختر ورقة العمل (Sheet)</label>
+                <select id="sheet-select" disabled>
+                    <option value="">لا يوجد صفحات...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>اختر قالب الشركة</label>
+                <div class="operator-buttons">
+                    <button id="vodafone-btn" class="operator-button" data-operator="vodafone" disabled>فودافون</button>
+                    <button id="etisalat-btn" class="operator-button" data-operator="etisalat" disabled>اتصالات</button>
+                    <button id="orange-btn" class="operator-button" data-operator="orange" disabled>أورانج</button>
+                    <button id="we-btn" class="operator-button" data-operator="we" disabled>WE</button>
+                    <button id="none-btn" class="operator-button" data-operator="none" disabled>بدون تعديل</button>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="lat-column-select">عمود خط العرض (Latitude)</label>
+                <select id="lat-column-select" disabled>
+                    <option value="">اختر عمود...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="lng-column-select">عمود خط الطول (Longitude)</label>
+                <select id="lng-column-select" disabled>
+                    <option value="">اختر عمود...</option>
+                </select>
+            </div>
+            <button id="plot-on-map-btn" disabled>عرض النقاط على الخريطة</button>
+        </div>
+        <p class="tip">
+            • يدعم فقط ملفات Excel بصيغة `.xlsx`. <br />
+            • سيتم تجاهل الصفوف الفارغة ورؤوس الأعمدة تلقائيًا.
+        </p>
+    </div>
+
+    <div id="map-page">
+        <div id="map"></div>
+        <div class="map-controls">
+            <button id="back-to-input-btn">العودة</button>
+            <button id="save-map-btn">حفظ الخريطة</button>
+        </div>
+        <div class="stats-panel" id="stats-panel" style="display: none;">
+            <div id="stats-content"></div>
+        </div>
+    </div>
+
+    <script>
+        // ======== إعداد الخريطة ========
+        let map;
+        let markersLayer;
+        let legendControl;
+        let statsPanel;
+        let markersData = []; // تخزين بيانات النقاط للحفظ
+
+        function initMap() {
+            if (map) return;
+            map = L.map('map', {
+                center: [26.8206, 30.8025],
+                zoom: 6,
+            });
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap',
+            }).addTo(map);
+            markersLayer = L.layerGroup().addTo(map);
+            statsPanel = document.getElementById('stats-panel');
+        }
+
+        function clearMarkers() {
+            if (markersLayer) {
+                markersLayer.clearLayers();
+            }
+            markersData = [];
+        }
+
+        function addLegend() {
+            if (legendControl) {
+                map.removeControl(legendControl);
+            }
+            const ctrl = L.control({ position: 'bottomleft' });
+            ctrl.onAdd = function () {
+                const div = L.DomUtil.create('div', 'legend');
+                const grades = [
+                    { label: '1', color: '#ffeb3b' },
+                    { label: '2-4', color: '#2196f3' },
+                    { label: '5-9', color: '#4caf50' },
+                    { label: '10+', color: '#f44336' },
+                ];
+                let html = '<b>دلالة اللون/الحجم</b><br>';
+                grades.forEach((grade) => {
+                    html += `<div><span class="chip" style="background:${grade.color}"></span>${grade.label}</div>`;
+                });
+                div.innerHTML = html;
+                return div;
+            };
+            ctrl.addTo(map);
+            legendControl = ctrl;
+        }
+
+        // ======== أدوات مساعدة ========
+        function normalizeNumber(str) {
+            if (str == null) return NaN;
+            const arabicDigits = {
+                '٠': '0',
+                '١': '1',
+                '٢': '2',
+                '٣': '3',
+                '٤': '4',
+                '٥': '5',
+                '٦': '6',
+                '٧': '7',
+                '٨': '8',
+                '٩': '9',
+            };
+            let s = ('' + str).trim().replace(/[٠-٩]/g, (d) => arabicDigits[d] ?? d);
+            if (s.includes(',') && !s.includes('.')) s = s.replace(',', '.');
+            return parseFloat(s);
+        }
+
+        function getColor(count) {
+            if (count >= 10) return '#f44336';
+            if (count >= 5) return '#4caf50';
+            if (count >= 2) return '#2196f3';
+            return '#ffeb3b';
+        }
+
+        function getRadius(count) {
+            return Math.min(45, 6 + count * 2.2);
+        }
+
+        function makeKey(lat, lng) {
+            return lat.toFixed(5) + ',' + lng.toFixed(5);
+        }
+
+        function createCountLabel(count, latLng) {
+            const icon = L.divIcon({
+                className: 'count-label',
+                html: `<span>${count}</span>`,
+                iconSize: [0, 0],
+                iconAnchor: [0, 0],
+            });
+            return L.marker(latLng, { icon: icon });
+        }
+
+        // ======== حفظ الخريطة كملف HTML ========
+        function saveMapAsHTML() {
+            if (markersData.length === 0) {
+                alert('لا توجد نقاط على الخريطة للحفظ');
+                return;
+            }
+
+            const mapHTML = `
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8" />
+    <title>خريطة التكرارات المحفوظة</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin=""
+    />
+    <style>
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+            direction: rtl;
+        }
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+        .legend {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            padding: 8px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        .chip {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-left: 6px;
+            border: 1px solid #00000022;
+        }
+        .count-label {
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            font-weight: bold;
+            font-size: 12px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        .stats-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            z-index: 1000;
+            font-size: 14px;
+            max-width: 250px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="stats-panel">
+        ${document.getElementById('stats-content').innerHTML}
+    </div>
+    <script
+        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""
+    ><\/script>
+    <script>
+        // إعداد الخريطة
+        const map = L.map('map').setView([${map.getCenter().lat}, ${map.getCenter().lng}], ${map.getZoom()});
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        // إضافة وسيلة الإيضاح
+        const legend = L.control({ position: 'bottomleft' });
+        legend.onAdd = function () {
+            const div = L.DomUtil.create('div', 'legend');
+            const grades = [
+                { label: '1', color: '#ffeb3b' },
+                { label: '2-4', color: '#2196f3' },
+                { label: '5-9', color: '#4caf50' },
+                { label: '10+', color: '#f44336' },
+            ];
+            let html = '<b>دلالة اللون/الحجم</b><br>';
+            grades.forEach((grade) => {
+                html += '<div><span class="chip" style="background:' + grade.color + '"></span>' + grade.label + '</div>';
+            });
+            div.innerHTML = html;
+            return div;
+        };
+        legend.addTo(map);
+
+        // إضافة النقاط إلى الخريطة
+        const markersData = ${JSON.stringify(markersData)};
+        
+        markersData.forEach(marker => {
+            // إضافة الدائرة الملونة
+            const circle = L.circleMarker([marker.lat, marker.lng], {
+                radius: marker.radius,
+                color: marker.color,
+                fillColor: marker.fillColor,
+                fillOpacity: 0.55,
+                weight: 1
+            }).addTo(map);
+            
+            // إضافة تسمية العدد
+            const icon = L.divIcon({
+                className: 'count-label',
+                html: '<span>' + marker.count + '</span>',
+                iconSize: [0, 0],
+                iconAnchor: [0, 0]
+            });
+            L.marker([marker.lat, marker.lng], { icon: icon }).addTo(map);
+        });
+    <\/script>
+</body>
+</html>`;
+
+            const blob = new Blob([mapHTML], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'خريطة_التكرارات.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // ======== المنطق الرئيسي ========
+        const introPage = document.getElementById('intro-page');
+        const mapPage = document.getElementById('map-page');
+        const plotOnMapBtn = document.getElementById('plot-on-map-btn');
+        const backToInputBtn = document.getElementById('back-to-input-btn');
+        const saveMapBtn = document.getElementById('save-map-btn');
+        const excelFileInput = document.getElementById('excel-file-input');
+        const sheetSelect = document.getElementById('sheet-select');
+        const latColumnSelect = document.getElementById('lat-column-select');
+        const lngColumnSelect = document.getElementById('lng-column-select');
+        const operatorButtons = document.querySelectorAll('.operator-button');
+        const statsContent = document.getElementById('stats-content');
+
+        let workbook = null;
+        let selectedOperator = null;
+        let selectedSheetData = null;
+        let finalDataRows = [];
+
+        function updateUIState() {
+            const fileSelected = !!excelFileInput.files.length;
+            const sheetSelected = !!sheetSelect.value;
+            const operatorSelected = !!selectedOperator;
+            
+            sheetSelect.disabled = !fileSelected;
+            operatorButtons.forEach(btn => btn.disabled = !sheetSelected);
+            latColumnSelect.disabled = !operatorSelected;
+            lngColumnSelect.disabled = !operatorSelected;
+            plotOnMapBtn.disabled = !(latColumnSelect.value && lngColumnSelect.value);
+        }
+
+        function processExcelFile(file) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const data = new Uint8Array(e.target.result);
+                workbook = XLSX.read(data, { type: 'array' });
+                updateSheetSelects();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function updateSheetSelects() {
+            sheetSelect.innerHTML = '<option value="">اختر ورقة...</option>';
+            workbook.SheetNames.forEach((sheetName) => {
+                const option = document.createElement('option');
+                option.value = sheetName;
+                option.textContent = sheetName;
+                sheetSelect.appendChild(option);
+            });
+            selectedOperator = null;
+            operatorButtons.forEach(btn => {
+                btn.classList.remove('active');
+            });
+            latColumnSelect.innerHTML = '<option value="">اختر عمود...</option>';
+            lngColumnSelect.innerHTML = '<option value="">اختر عمود...</option>';
+            updateUIState();
+        }
+
+        function processSheet(sheetName) {
+            if (!workbook || !sheetName) return;
+            const worksheet = workbook.Sheets[sheetName];
+            selectedSheetData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            updateUIState();
+        }
+        
+        function processDataByOperator() {
+            if (!selectedOperator || !selectedSheetData) return;
+            
+            let processedData = JSON.parse(JSON.stringify(selectedSheetData));
+
+            if (selectedOperator === 'orange') {
+                if (processedData.length >= 4) {
+                    // حذف أول 4 صفوف (من الصف 1 إلى 4)
+                    processedData.splice(0, 4);
+                    // حذف العمود الأول
+                    processedData = processedData.map(row => row.slice(1));
+                }
+            } else if (selectedOperator === 'we') {
+                if (processedData.length > 0) {
+                    processedData.splice(0, 8);
+                }
+            } else if (selectedOperator === 'vodafone' || selectedOperator === 'etisalat' || selectedOperator === 'none') {
+                // لا يوجد تعديلات
+            }
+
+            let headerRowIndex = -1;
+            for (let i = 0; i < processedData.length; i++) {
+                // تأكد من أن الصف ليس فارغاً
+                if (processedData[i].length > 0 && processedData[i][0] != null) {
+                    headerRowIndex = i;
+                    break;
+                }
+            }
+
+            if (headerRowIndex === -1) {
+                alert('لم يتم العثور على أي بيانات صالحة بعد المعالجة.');
+                return;
+            }
+
+            const headers = processedData[headerRowIndex];
+            finalDataRows = processedData.slice(headerRowIndex + 1);
+
+            updateColumnSelects(headers);
+
+            plotOnMapBtn.onclick = () => plotPoints(finalDataRows);
+            updateUIState();
+        }
+
+        function updateColumnSelects(headers) {
+            latColumnSelect.innerHTML = '<option value="">اختر عمود...</option>';
+            lngColumnSelect.innerHTML = '<option value="">اختر عمود...</option>';
+            headers.forEach((header, index) => {
+                const optionLat = document.createElement('option');
+                optionLat.value = index;
+                optionLat.textContent = header;
+                latColumnSelect.appendChild(optionLat);
+
+                const optionLng = document.createElement('option');
+                optionLng.value = index;
+                optionLng.textContent = header;
+                lngColumnSelect.appendChild(optionLng);
+            });
+        }
+
+        function plotPoints(dataRows) {
+            clearMarkers();
+            const latColIndex = latColumnSelect.value;
+            const lngColIndex = lngColumnSelect.value;
+            
+            if (latColIndex === '' || lngColIndex === '') {
+                alert('من فضلك اختر عمود خط العرض وعمود خط الطول.');
+                return;
+            }
+
+            const counts = new Map();
+            const bounds = [];
+
+            dataRows.forEach((row) => {
+                const lat = normalizeNumber(row[latColIndex]);
+                const lng = normalizeNumber(row[lngColIndex]);
+                if (!isFinite(lat) || !isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                    return;
+                }
+                const key = makeKey(lat, lng);
+                const rec = counts.get(key) || { lat: +lat.toFixed(6), lng: +lng.toFixed(6), count: 0 };
+                rec.count += 1;
+                counts.set(key, rec);
+            });
+
+            if (counts.size === 0) {
+                alert('لم يتم العثور على نقاط صالحة في الأعمدة المختارة.');
+                return;
+            }
+
+            initMap();
+            
+            // مسح البيانات القديمة
+            markersData = [];
+            
+            counts.forEach(({ lat, lng, count }) => {
+                const latLng = [lat, lng];
+                const color = getColor(count);
+                const radius = getRadius(count);
+                
+                // إضافة النقاط إلى الخريطة
+                const circle = L.circleMarker(latLng, {
+                    radius: radius,
+                    color: color,
+                    fillColor: color,
+                    fillOpacity: 0.55,
+                    weight: 1,
+                });
+                circle.addTo(markersLayer);
+                createCountLabel(count, latLng).addTo(markersLayer);
+                bounds.push(latLng);
+                
+                // تخزين بيانات النقاط للحفظ
+                markersData.push({
+                    lat: lat,
+                    lng: lng,
+                    count: count,
+                    radius: radius,
+                    color: color,
+                    fillColor: color
+                });
+            });
+
+            if (bounds.length === 1) {
+                map.setView(bounds[0], 13);
+            } else {
+                map.fitBounds(bounds, { padding: [20, 20] });
+            }
+
+            // تحديث الإحصائيات
+            updateStatsPanel(dataRows.length, counts.size);
+            
+            addLegend();
+            introPage.style.display = 'none';
+            mapPage.style.display = 'block';
+            setTimeout(() => {
+                map.invalidateSize();
+            }, 300);
+        }
+
+        function updateStatsPanel(totalPoints, uniquePoints) {
+            statsPanel.style.display = 'block';
+            statsContent.innerHTML = `
+                <strong>إحصائيات النقاط:</strong><br>
+                عدد النقاط المحددة: ${totalPoints}<br>
+                عدد التكرارات المختلفة: ${uniquePoints}
+            `;
+        }
+
+        // ربط الأحداث
+        excelFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                processExcelFile(file);
+                selectedOperator = null;
+                updateUIState();
+            }
+        });
+
+        sheetSelect.addEventListener('change', (e) => {
+            const selectedSheet = e.target.value;
+            if (selectedSheet) {
+                processSheet(selectedSheet);
+                selectedOperator = null;
+                operatorButtons.forEach(btn => btn.classList.remove('active'));
+                latColumnSelect.innerHTML = '<option value="">اختر عمود...</option>';
+                lngColumnSelect.innerHTML = '<option value="">اختر عمود...</option>';
+            }
+        });
+
+        operatorButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                operatorButtons.forEach(b => b.classList.remove('active'));
+                const clickedBtn = e.currentTarget;
+                clickedBtn.classList.add('active');
+                
+                selectedOperator = clickedBtn.dataset.operator;
+                processDataByOperator();
+            });
+        });
+        
+        latColumnSelect.addEventListener('change', updateUIState);
+        lngColumnSelect.addEventListener('change', updateUIState);
+
+        backToInputBtn.addEventListener('click', () => {
+            introPage.style.display = 'flex';
+            mapPage.style.display = 'none';
+            clearMarkers();
+            statsPanel.style.display = 'none';
+        });
+
+        saveMapBtn.addEventListener('click', saveMapAsHTML);
+
+        // التهيئة الأولية
+        updateUIState();
+    </script>
+</body>
+</html>
